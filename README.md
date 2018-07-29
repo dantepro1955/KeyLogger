@@ -21,3 +21,4 @@ Read file curl-7.45.0\winbuild\BUILD.WINDOWS.txt for more information
       4.2 Export password using "DB Browser for SQL Lite" to file
       4.3 Send file
 5. drivers                  	    :	Print al driver
+6. update_period 8000               :	Change update period (ms)

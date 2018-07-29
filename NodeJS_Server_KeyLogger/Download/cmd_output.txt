@@ -1,1 +1,1 @@
-Not found dir
+Update period (ms) = 500

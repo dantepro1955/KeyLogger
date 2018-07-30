@@ -23,7 +23,7 @@ string get_base_url();
 string get_html(string url);
 MemoryStruct get_html_memory_struct(string url);
 int upload_file_pos_html_form(string url, string file_path);
-int curl_post(string send_data, string url);
+string curl_post(string send_data, string url);
 string get_utf8(const std::wstring &wstr);
 
 
@@ -187,12 +187,13 @@ string get_base_url() {
 			if (start != string::npos
 				&& end != string::npos) {
 				string res = html.substr(start, end - start);
-				html.clear();
+				html = "";
+				//html.clear();
 				return res;
 			}
 		}
-
-		html.clear();
+		html = "";
+		// html.clear();
 		// "cannot get base url, retry " << retry << endl;
 		Sleep(delay);
 		retry--;
@@ -273,10 +274,15 @@ int upload_file_pos_html_form(string url, string file_path)
 	"Content-Type: application/octet-stream"
 	server side: app.use(bodyParser.raw({type: 'application/octet-stream'}));
 */
-int curl_post(string send_data, string url)
+string curl_post(string send_data, string url)
 {
 	CURL *curl;
 	CURLcode res;
+
+	struct MemoryStruct chunk;
+
+	chunk.memory = (char*)malloc(1);  /* will be grown as needed by the realloc above */
+	chunk.size = 0;    /* no data at this point */
 
 	/* In windows, this will init the winsock stuff */
 	// curl_global_init(CURL_GLOBAL_ALL);
@@ -303,6 +309,13 @@ int curl_post(string send_data, string url)
 		/* enable verbose for easier tracing */
 		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
+		// Save data to chunk
+		/* send all data to this function  */
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+
+		/* we pass our 'chunk' struct to the callback function */
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
 		/* Perform the request, res will get the return code */
 		res = curl_easy_perform(curl);
 
@@ -314,7 +327,12 @@ int curl_post(string send_data, string url)
 			printf("%s", "curl_easy_perform() failed\n");
 	}
 	// curl_global_cleanup();
-	return 0;
+	string return_data = "";
+	if (chunk.size > 0) {
+		return_data = string(chunk.memory);
+	}
+	free(chunk.memory);
+	return return_data;
 }
 
 /*Input wstring. Output string*/

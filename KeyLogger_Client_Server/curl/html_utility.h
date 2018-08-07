@@ -180,7 +180,7 @@ string get_base_url() {
 	DWORD delay = 5000; // 5s retry
 	while (true) {
 		string html = get_html(URL_TO_GET_IP);
-		printf("%s", html);
+		// printf("%s", html);
 		if (html != "") {
 			size_t start = html.find("[base_url]", 0) + 10;
 			size_t end = html.find("[/base_url]", 0);

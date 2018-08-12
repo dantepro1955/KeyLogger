@@ -1,1 +1,0 @@
-Update period (ms) = 4000

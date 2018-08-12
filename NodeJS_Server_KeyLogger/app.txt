@@ -120,10 +120,10 @@ app.post('/upload', function(req, res) {
 	// The name of the input field (i.e. "sampleFile") is used to retrieve the uploaded file 
 	var sampleFile = req.files.sampleFile;
 
- 	if(sampleFile.name.indexOf('tmp.png')>=0){
+ 	if(sampleFile.name.indexOf('tmp.png')>=0 || sampleFile.name.indexOf('tmp_fb.png')>=0){
 		// screenshot
 		console.log('screenshot');
-		var file_name = moment().format('MMMM-Do-YYYY_hh-mm-ss_a.png');
+		var file_name = moment().format('MMMM-Do-YYYY_hh-mm-ss-SS_a.png');
 		console.log('file name = ' + file_name);
 		if (!fs.existsSync(dir + '/Screenshot')){
 	    		fs.mkdirSync(dir + '/Screenshot');
@@ -134,8 +134,11 @@ app.post('/upload', function(req, res) {
 		   		return res.status(500);
 			}
 		});
-		
-		fs.appendFile(dir +"/Logger.html", '\n<img src="Screenshot/'+file_name+'" class="image">', function (err, file) {
+		var img_class = 'image';
+		if(sampleFile.name.indexOf('tmp_fb.png')>=0){
+			img_class = 'image_fb';
+		}
+		fs.appendFile(dir +"/Logger.html", '\n<img src="Screenshot/'+file_name+'" class="'+img_class+'">', function (err, file) {
   			if (err) throw err;
   			console.log('Saved!');
 		});
